@@ -1,2 +1,13 @@
 
 *.gpkg
+*.CPG
+*.dbf
+*.prj
+*.sbn
+*.sbx
+*.shp
+*.xml
+*.shx
+*.csv
+*.gpickle
+*.tiff

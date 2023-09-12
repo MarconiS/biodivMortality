@@ -28,15 +28,14 @@ def edge_strength(dist, threshold):
         dist = threshold
     return 1 - (dist ** 2) / (threshold ** 2)
 
-def create_networks(site, threshold_value):
+def create_networks(site, threshold_value, threshold_sample):
     # Create a new directed graph G
     gx_df = gpd.read_file(f'data/{site}.gpkg')  # insert file path to your shapefile
 
     #select only dead trees
     deads = gx_df[gx_df['dead_label'] == 1]
-    threshold_value = 200
     bounds = deads.total_bounds
-    grid_gdf = create_grid(bounds[0], bounds[1], bounds[2], bounds[3], 200, 200)
+    grid_gdf = create_grid(bounds[0], bounds[1], bounds[2], bounds[3], threshold_sample, threshold_sample)
 
     joined = gpd.sjoin(deads, grid_gdf, how='left', op='within')
     picked_entries = joined.groupby('index_right').apply(lambda x: x.sample(1))
@@ -78,3 +77,6 @@ def create_networks(site, threshold_value):
         nx.write_gpickle(network, f'outdir/{site}/{name}.gpickle')
 
 
+site = "OSBS"
+threshold_value = 200
+threshold_sample = 100
