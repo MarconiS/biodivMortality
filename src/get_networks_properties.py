@@ -8,7 +8,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import math
 import geopandas as gpd
-
+import ee
+from ee import batch
+import rasterio
 def calculate_hull_biodiversity(G):
     # Extract tags from edges
     edge_tags = [d.get('tag') for u,v,d in G.edges(data=True)]
@@ -33,38 +35,40 @@ def count_dead_tags(directory):
     gap_features = []
     for filename in os.listdir(directory):
         if filename.endswith(".gpickle"):
-            dead_count = 0
             pt = os.path.join(directory, filename)
             with open(pt, 'rb') as f:
                 network = pickle.load(f)
 
-            #get the number of edges with is_dead == True
-            dead_count = len([edge for edge in network.edges(data=True) if edge[2].get('is_dead') == 0])
+            #get the sum of the strength of edges with is_dead == True
+            dead_count = sum([edge[2].get('strength') for edge in network.edges(data=True) if edge[2].get('is_dead') == 1])
 
-            # get the sum of the crown_area of edges for which is_dead == False
-            surface_alive = sum([edge[2].get('crown_area') for edge in network.edges(data=True) if edge[2].get('is_dead') == 0])
+            # get the sum of the crown_area * strength of edges for which is_dead == False
+            surface_alive = sum([edge[2].get('crown_area') * edge[2].get('strength') for edge in network.edges(data=True) if edge[2].get('is_dead') == 0])
 
-            # get the sum of the crown_area of edges for which is_dead == True
-            surface_dead = sum([edge[2].get('crown_area') for edge in network.edges(data=True) if edge[2].get('is_dead') == 1])
+            # get the sum of the crown_area * strength of edges for which is_dead == True
+            surface_dead = sum([edge[2].get('crown_area') * edge[2].get('strength') for edge in network.edges(data=True) if edge[2].get('is_dead') == 1])
 
             # get the relative hill diversity
             hill_div, species_count, sp_frequency = calculate_hull_biodiversity(network)
 
-            # create a pandas series with the dead count and the filename
-            idrow = pd.Series([filename, dead_count, surface_dead, surface_alive, species_count, hill_div, sp_frequency], 
-                              index=['focal_id', 'dead_count', 'surface_dead', 'surface_alive', 'species_count', 'hill_div', 'sp_frequency']) 
+            # measure of network length
+            network_length = sum([edge[2].get('strength') for edge in network.edges(data=True)])
+
+            # create a pandas series with the measures and the filename
+            idrow = pd.Series([filename, dead_count, surface_dead, surface_alive, species_count, hill_div, sp_frequency, network_length], 
+                              index=['focal_id', 'dead_count', 'surface_dead', 'surface_alive', 'species_count', 'hill_div', 'sp_frequency', 'network_length']) 
+                
             # append idrow series       
             gap_features.append(idrow)
-        
+
     return gap_features
 
 
 
-site = "SERC"
+site = "HARV"
 directory = f"networks/{site}"
 gap_features = count_dead_tags(directory)
 gx_df = gpd.read_file(f'data/{site}.gpkg')  # insert file path to your shapefile
-
 
 # create a dataframe from the list of series
 df = pd.DataFrame(gap_features)
@@ -86,4 +90,22 @@ df_ = pd.merge(df, gx_df_[['focal_id', 'sci_name', 'geometry']], on='focal_id')
 
 # turn  df_ to geodataframe and save as geopackage
 df_ = gpd.GeoDataFrame(df_, geometry='geometry')
-df_.to_file(f'data/{site}_gap_features.gpkg', driver='GPKG')
+
+import rasterio
+from rasterio.warp import calculate_default_transform, reproject, Resampling
+from rasterio.mask import mask
+import geopandas as gpd
+from shapely.geometry import box
+#load nlcd data with rasterio and assign value to each point in df_ based on spatial join 
+raster =  rasterio.open(f'data/{site}_NLCD2021.tif') 
+
+# function to get raster value at a point
+def get_value(row, raster):
+    x = row.geometry.centroid.x
+    y = row.geometry.centroid.y
+    row['raster_value'] = next(raster.sample([(x, y)]))[0]
+    return row
+
+# apply the function to each point
+points = df_.apply(get_value, raster=raster, axis=1)
+points.to_file(f'data/{site}_gap_features.gpkg', driver='GPKG')

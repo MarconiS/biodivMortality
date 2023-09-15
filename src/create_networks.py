@@ -7,6 +7,7 @@ import networkx as nx
 import geopandas as gpd
 import numpy as np
 from shapely.geometry import Polygon, Point
+import pickle
 
 def create_grid(minx, miny, maxx, maxy, xsize, ysize):
     cols_list = np.arange(minx, maxx, xsize)
@@ -67,16 +68,18 @@ def create_networks(site, threshold_value, threshold_sample):
                     #calculate distance between point and dead_point
                     dist = point.distance(neighbor_point)
                     strength = edge_strength(dist, threshold_value)
-                    network.add_edge(row.Index, index, tag = gx_df.sci_name[index], dist=dist, strength=strength, 
+                    network.add_edge(row.Index, index, tag = gx_df.sci_name[index], dist=dist, strength=strength, is_dead = gx_df.dead_label[index],
                                     crown_area = gx_df.crown_area[index], east = gx_df.x[index], north = gx_df.y[index])
                 
                 networks[row.Index] = network
 
     #save networks to file
     for idx, (name, network) in enumerate(networks.items()):
-        nx.write_gpickle(network, f'outdir/{site}/{name}.gpickle')
+        with open(f'networks/{site}/{name}.gpickle', 'wb') as f:
+            pickle.dump(network, f, pickle.HIGHEST_PROTOCOL)
 
 
-site = "OSBS"
-threshold_value = 200
-threshold_sample = 100
+site = "SERC"
+threshold_value = 50
+threshold_sample = 25
+create_networks(site, threshold_value, threshold_sample)

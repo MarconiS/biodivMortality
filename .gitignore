@@ -11,3 +11,5 @@
 *.csv
 *.gpickle
 *.tiff
+*.tif
+*.pt
