@@ -2,8 +2,8 @@ import openeo
 import geopandas as gpd
 import numpy as np
 site = "HARV"
-#only read the first 10 rows of a geopandas
-aoi = gpd.read_file('data/AOP_flightBoxes/AOP_flightboxesAllSites.shp')#extract centroid of the layer extent
+# get the area of interest from the AOP footprint
+aoi = gpd.read_file('data/AOP_flightBoxes/AOP_flightboxesAllSites.shp')
 aoi = aoi[aoi['siteID'] == site]
 
 #extract extent of aoi
