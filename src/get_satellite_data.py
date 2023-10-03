@@ -35,28 +35,33 @@ import geopandas as gpd
 import numpy as np
 from ee import batch
 
-ee.Initialize()
-for year in range(2003, 2023):
-    # Create an image collection.
-    collection = ee.ImageCollection('USDA/NAIP/DOQQ').filterDate(f'{year}-01-01', f'{year}-12-31')
-    
-    # Filter spatially using a geometry object.
-    collection = collection.filterBounds(ee.Geometry.Rectangle(tuple(extent)))
-    
-    if collection.size().getInfo() > 0:
-        image = collection.median()
-
-        taskConfig = {
-            'image': image,
-            'description': f'satellite_{year}',
-            'scale': 1,
-            'region': ee.Geometry.Rectangle(tuple(extent)).getInfo()["coordinates"],
-            'folder' : 'NAIP_forestGeo',
-            'fileFormat': 'GeoTIFF',
-            'maxPixels': 1E10,
-        }
-
-        task = batch.Export.image.toDrive(**taskConfig)
-        task.start()
-    else:
-        print(f"No data for {year}")
+import openeo
+import geopandas as gpd
+import numpy as np
+site = ["SERC", "OSBS", "HARV"]
+for st in site:
+    # get the area of interest from the AOP footprint
+    aoi = gpd.read_file('data/AOP_flightBoxes/AOP_flightboxesAllSites.shp')
+    aoi = aoi[aoi['siteID'] == st]
+    #extract extent of aoi
+    extent = aoi.total_bounds
+    ee.Initialize()
+    for year in range(2003, 2023):
+        # Create an image collection.
+        collection = ee.ImageCollection('USDA/NAIP/DOQQ').filterDate(f'{year}-06-01', f'{year}-7-31')
+        # Filter spatially using a geometry object.
+        collection = collection.filterBounds(ee.Geometry.Rectangle(tuple(extent)))
+        if collection.size().getInfo() > 0:
+            image = collection.median()
+            taskConfig = {
+                'image': image,
+                'description': f'summer_NAIP_{year}',
+                'region': ee.Geometry.Rectangle(tuple(extent)).getInfo()["coordinates"],
+                'folder' : 'NAIP_forestGeo',
+                'fileFormat': 'GeoTIFF',
+                'maxPixels': 1E10,
+            }
+            task = batch.Export.image.toDrive(**taskConfig)
+            task.start()
+        else:
+            print(f"No data for {year}")
